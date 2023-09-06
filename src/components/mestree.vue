@@ -2,29 +2,19 @@
     <div>
         <div class="mar-title">
             <h2 style="margin: 5px 5px;font-size: 20px;">消息流</h2>
-            <el-button @click="importall"
-                style="border-radius: 10px; margin-left: 10px; background-color: aquamarine; color: blue;">导入</el-button>
-            <el-button @click="exportall"
-                style="border-radius: 10px; margin-left: 10px; background-color: aquamarine; color: rgb(221, 103, 24);">导出</el-button>
+            <el-button @click="importall" style="border-radius: 10px; margin-left: 10px;">导入</el-button>
+            <el-button @click="exportall" style="border-radius: 10px; margin-left: 10px;">导出</el-button>
             <el-dialog :visible.sync="dialogVisble" width="500px" :before-close="handleClose">
                 <div>时间片：
                     <el-input v-model="timeSlice" placeholder="请输入" style="width: 20%;">
                     </el-input>
                     *10分钟
                 </div>
-
-                <!-- <div style="display: flex;flex-direction: row;">时间片:<el-input v-model="formInline.threshold" placeholder="时间片" style="width: 20%;"></el-input></div> -->
                 <el-upload action="#" :http-request="uploadFileTest" :limit="1" :drag=true style="margin-top: 10px;">
                     <i class="el-icon-upload"></i>
                     <div class="el-upload__text">将文件拖到此处，或<em>点击上传</em></div>
-                    <!-- <el-button
-                        style="border-radius: 10px; margin-left: 10px; background-color: aquamarine; color: blue;">导入文件</el-button> -->
                 </el-upload>
-                <!-- <h2 style="margin: 5px 5px;font-size: 10px;margin-left: 10px;margin-top: 12px;">当前数据：{{ this.filename }}
-                </h2> -->
             </el-dialog>
-
-
         </div>
         <div>
             <el-tabs v-model="activeName">
@@ -56,55 +46,29 @@
                                 <el-input v-model="formInline.threshold" placeholder="时间阈值"
                                     style="width: 70%;"></el-input>*{{ this.timeSlice * 10 }}分钟
                             </div>
-                            <!-- <el-col :span="6"><el-select v-model="value" placeholder="请选择">
-                                    <el-option v-for="item in thresholdOptions" :key="item.value" :label="item.label"
-                                        :value="item.value">
-                                    </el-option>
-
-                                </el-select>
-                            </el-col> -->
                         </el-form-item>
                         <el-form-item>
                             <el-button type="primary" @click="onSubmit">查询</el-button>
                         </el-form-item>
                     </el-form>
                     <el-table :data="tableDataForShow">
-                        <!-- <el-table-column prop="id" label="ID" width="55" align="center"></el-table-column> -->
+                        <el-table-column prop="id" label="ID" width="55" align="center"></el-table-column>
                         <el-table-column prop="source" label="起始点"></el-table-column>
                         <el-table-column prop="target" label="目标点">
                         </el-table-column>
                         <el-table-column prop="time" label="传递时间"></el-table-column>
-                        <!-- <el-table-column prop="content" label="内容"></el-table-column> -->
                     </el-table>
-                    <!-- <div class="pagination"> -->
                     <el-pagination @size-change="handleSizeChange" @current-change="handleCurrentChange"
                         :current-page=page.index :page-sizes="[5, 10, 15]" :page-size=page.size
                         layout="total, sizes, prev, pager, next, jumper" :total=page.total>
                     </el-pagination>
-                    <!-- </div> -->
                 </el-tab-pane>
-                <!-- <el-tab-pane label="节点信息" name="third">
-
-                </el-tab-pane> -->
             </el-tabs>
         </div>
     </div>
 </template>
 <script>
-// import mestable from "./mesinfo.vue";
-// import usertable from "./userinfo.vue";
 import * as d3 from 'd3';
-// import { ElDrawer } from 'element-plus'
-// import Edata from '../../public/tablemes.json'
-// import Vdata from '../../public/table.json'
-// import Mdata from '../../public/Markov.json'
-// import store from "../store/mesinfo"
-// import { ElMessage, ElMessageBox } from "element-plus";
-// import { Delete, Edit, Search, Plus, Pointer } from "@element-plus/icons-vue";
-// import FileSaver from 'file-saver'
-// import { objectPick } from '@vueuse/shared';
-// import { linksUserCho } from "../api/index.ts"
-// import { fetchMesData, testflask, mutiDraw, mutiCross, markovData } from "../api/index";
 import ElementUI from 'element-ui';
 import Vue from 'vue'
 import 'element-ui/lib/theme-chalk/index.css';
@@ -116,29 +80,13 @@ export default {
     name: 'mestree',
     data() {
         return {
-            selectvalue: [0, 10],
-            minn: undefined,
-            maxx: undefined,
-            k: 4,
-            Mlist: [],
-            currentRow: undefined,
-            marColor: "black",
-            selectColor: "green",
-            oldCurrentRow: undefined,
-            messageColor: "#DCDCDC",
-            threshold: 6, //阈值s
-            drawer: false,
-            direction: 'rtl',
-            activeName: "first",
-            tableDataForShow: null,
-            tableDataAll: null,
-            currentPage4: 4,
-            page: {
+            activeName: "first",//默认第一页        
+            page: {//分页参数
                 size: 10,
                 index: 1,
                 total: 0
             },
-            formInline: {
+            formInline: {//表单数据
                 user: '',//IP
                 hop: '',//跳数
                 datastart: '',//起始时间
@@ -148,71 +96,30 @@ export default {
                 timeend: '',//换算成毫秒的时间
                 thresholdByTime: '',//换算成毫秒的阈值
             },
-            fileshow: false,
-            filename: "无",
-            dialogVisble: false,
-            tabledata: null,
-            tabledataSearch: null,
-
-            // options: [{
-            //     value: 60000,
-            //     label: '分钟'
-            // }, {
-            //     value: 3600000,
-            //     label: '小时'
-            // }, {
-            //     value: 86400000,
-            //     label: '天'
-            // }],
-            value: '',
-
-
-            thresholdOptions: [{
-                value: 60000,
-                label: '分钟'
-            }, {
-                value: 3600000,
-                label: '小时'
-            }, {
-                value: 86400000,
-                label: '天'
-            }],
-
-            accY: "",
-            filterresFromUser: [],
-
-            timeSlice: ""
-
+            filename: "无",//文件名称
+            dialogVisble: false,//对话框可视
+            tabledata: null,//导入的全部数据
+            tableDataForShow: null,//表格展示的已分完页数据
+            accY: "",//纵轴准确度
+            filterresFromUser: [],//用户选择好的数据，即导出数据
+            timeSlice: ""//用户自己填写的时间片
         };
     },
-    computed: {
-        draw() {
-            return [this.tabledata, this.tabledataSearch]
-        }
-
-    },
-    // watch: {
-    //     draw: {
-    //         deep: true,
-    //         handler() {
-    //             this.generateVis2()
-
-    //         }
-    //     }
-
-    // },
     methods: {
         importall() {
+            //导入，显示导入对话框
             this.dialogVisble = true
         },
         handleClose() {
+            //关闭导入对话框
             this.dialogVisble = false
         },
         exportall() {
+            //导出，数据为this.filterresFromUser，后续如何使用数据就不知道了
             console.log(this.filterresFromUser);
         },
         async uploadFileTest(item) {
-            this.tabledataSearch = null
+            // this.tabledataSearch = null
             let formdataw = new FormData()
             formdataw.append('file', item.file)
             await axios({
@@ -251,34 +158,99 @@ export default {
                     form: this.formInline
                 }
             }).then(res => {
-                this.tabledataSearch = res.data
+                this.tabledata = res.data
             })
-            this.tableDataForShow = this.tabledataSearch.slice((this.page.index - 1) * this.page.size, (this.page.index) * this.page.size)
-            this.page.total = this.tabledataSearch.length
-            console.log(this.tabledataSearch);
+            this.tableDataForShow = this.tabledata.slice((this.page.index - 1) * this.page.size, (this.page.index) * this.page.size)
+            this.page.total = this.tabledata.length
             d3.select("#maingroup").remove()
 
         },
         handleSizeChange(val) {
             console.log(`每页 ${val} 条`);
             this.page.size = val
-            if (this.tabledataSearch != null) {
-                this.tableDataForShow = this.tabledataSearch.slice((this.page.index - 1) * this.page.size, (this.page.index) * this.page.size)
-            } else {
-                this.tableDataForShow = this.tabledata.slice((this.page.index - 1) * this.page.size, (this.page.index) * this.page.size)
-            }
+            this.tableDataForShow = this.tabledata.slice((this.page.index - 1) * this.page.size, (this.page.index) * this.page.size)
+            // if (this.tabledataSearch != null) {
+            //     this.tableDataForShow = this.tabledataSearch.slice((this.page.index - 1) * this.page.size, (this.page.index) * this.page.size)
+            // } else {
+            //     this.tableDataForShow = this.tabledata.slice((this.page.index - 1) * this.page.size, (this.page.index) * this.page.size)
+            // }
 
         },
         handleCurrentChange(val) {
             console.log(`当前页: ${val}`);
             this.page.index = val
-            if (this.tabledataSearch != null) {
-                this.tableDataForShow = this.tabledataSearch.slice((this.page.index - 1) * this.page.size, (this.page.index) * this.page.size)
-            } else {
-                this.tableDataForShow = this.tabledata.slice((this.page.index - 1) * this.page.size, (this.page.index) * this.page.size)
-            }
+            this.tableDataForShow = this.tabledata.slice((this.page.index - 1) * this.page.size, (this.page.index) * this.page.size)
+            // if (this.tabledataSearch != null) {
+            //     this.tableDataForShow = this.tabledataSearch.slice((this.page.index - 1) * this.page.size, (this.page.index) * this.page.size)
+            // } else {
+                
+            // }
         },
         generateVis2() {
+            // this.tabledata =
+            //     [
+            //         {
+            //             "id": 1,
+            //             "source": "192.168.1.1",
+            //             "target": "192.168.1.2",
+            //             "time": "2023-08-23 00:00"
+            //         },
+            //         {
+            //             "id": 2,
+            //             "source": "192.168.1.3",
+            //             "target": "192.168.1.4",
+            //             "time": "2023-08-23 00:10"
+            //         },
+            //         {
+            //             "id": 3,
+            //             "source": "192.168.1.5",
+            //             "target": "192.168.1.6",
+            //             "time": "2023-08-23 00:20"
+            //         },
+            //         {
+            //             "id": 4,
+            //             "source": "192.168.1.7",
+            //             "target": "192.168.1.8",
+            //             "time": "2023-08-23 00:30"
+            //         },
+            //         {
+            //             "id": 5,
+            //             "source": "192.168.1.9",
+            //             "target": "192.168.1.10",
+            //             "time": "2023-08-23 00:40"
+            //         },
+            //         {
+            //             "id": 6,
+            //             "source": "192.168.1.11",
+            //             "target": "192.168.1.12",
+            //             "time": "2023-08-23 00:50"
+            //         },
+            //         {
+            //             "id": 7,
+            //             "source": "192.168.1.13",
+            //             "target": "192.168.1.14",
+            //             "time": "2023-08-23 01:00"
+            //         },
+            //         {
+            //             "id": 8,
+            //             "source": "192.168.1.15",
+            //             "target": "192.168.1.16",
+            //             "time": "2023-08-23 01:10"
+            //         },
+            //         {
+            //             "id": 9,
+            //             "source": "192.168.1.17",
+            //             "target": "192.168.1.18",
+            //             "time": "2023-08-23 01:20"
+            //         },
+            //         {
+            //             "id": 10,
+            //             "source": "192.168.1.19",
+            //             "target": "192.168.1.20",
+            //             "time": "2023-08-23 01:30"
+            //         }
+            //     ]
+
             if (this.accY == '') {
                 this.accY = 1
             }
@@ -681,12 +653,12 @@ export default {
             // this.maxx = maxTime
             // this.minn = minTime
 
-            let filterMesDataByHold = [];
-            if (this.tabledataSearch == null) {
-                filterMesDataByHold = this.tabledata
-            } else {
-                filterMesDataByHold = this.tabledataSearch
-            }
+            let filterMesDataByHold = this.tabledata;
+            // if (this.tabledataSearch == null) {
+            //     filterMesDataByHold = this.tabledata
+            // } else {
+            //     filterMesDataByHold = this.tabledataSearch
+            // }
             // filterMesDataByHold = this.tabledata
 
             let filterUserData = new Set()
@@ -722,17 +694,6 @@ export default {
                 return
             }
             let timeInterval = this.timeSlice * 60000 * 10
-            switch (timeInterval) {
-                case 60000:
-                    this.value = '分钟';
-                    break;
-                case 3600000:
-                    this.value = '小时';
-                    break;
-                case 86400000:
-                    this.value = '天';
-                    break;
-            }
             // this.value = timeInterval
             let maxTime = Date.parse(filterMesData.list[filterMesData.list.length - 1].time) + timeInterval
             let minTime = Date.parse(filterMesData.list[0].time)
@@ -914,7 +875,7 @@ export default {
                                     return "red"
                                 }
                             }
-                        }else{
+                        } else {
                             return "blue"
                         }
                     });
@@ -931,10 +892,11 @@ export default {
                                     return "red"
                                 }
                             }
-                        }else{
+                        } else {
                             return "blue"
                         }
                     });
+
 
             });
 
