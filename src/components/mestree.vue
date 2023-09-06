@@ -23,7 +23,7 @@
                         <el-input v-model="accY" placeholder="纵轴精确度" style="width: 10%;margin-right: 10px;"></el-input>
                         <el-button @click="generateVis2"
                             style="border-radius: 10px;  background-color: aquamarine; color: blue;">绘制</el-button>
-                            <el-button type="primary" icon="el-icon-edit" @click="openAcc" circle></el-button>
+                        <el-button type="primary" icon="el-icon-edit" @click="openAcc" circle></el-button>
                     </div>
                     <svg id="chart" width="800" height="500"></svg>
                 </el-tab-pane>
@@ -50,6 +50,7 @@
                         </el-form-item>
                         <el-form-item>
                             <el-button type="primary" @click="onSubmit">查询</el-button>
+                            <el-button type="danger" @click="clear">重置</el-button>
                         </el-form-item>
                     </el-form>
                     <el-table :data="tableDataForShow">
@@ -99,12 +100,13 @@ export default {
             },
             filename: "无",//文件名称
             dialogVisble: false,//对话框可视
+            tabledataOri: null,//导入的原始数据，为了便于重置
             tabledata: null,//导入的全部数据
             tableDataForShow: null,//表格展示的已分完页数据
-            accY: "",//纵轴准确度
-            filterresFromUser: [],//用户选择好的数据，即导出数据
+            accY: "",//纵轴准确度，每n个展示一个
+            filterresFromUser: [], //用户选择好的数据，即导出数据
             timeSlice: "",//用户自己填写的时间片
-            timeAll:""//一共有多少时间点，为了做省略
+            timeAll: ""//一共有多少时间点，为了做省略
         };
     },
     methods: {
@@ -139,6 +141,7 @@ export default {
                 data: { name: this.filename }
             }).then(res => {
                 this.tabledata = res.data
+                this.tabledataOri = res.data
             })
             //数据进行时间处理，增添数据属性，把2023-8-22 00:00:00 转换成毫秒，方便后续画图比较
             for (let i = 0; i < this.tabledata.length; i++) {
@@ -167,7 +170,7 @@ export default {
                     url: 'http://127.0.0.1:5002/mesBE/searchData',
                     method: "POST",
                     data: {
-                        data: this.tabledata,
+                        data: this.tabledataOri,
                         form: this.formInline
                     }
                 }).then(res => {
@@ -176,9 +179,30 @@ export default {
                 //检索完毕，数据分页
                 this.tableDataForShow = this.tabledata.slice((this.page.index - 1) * this.page.size, (this.page.index) * this.page.size)
                 this.page.total = this.tabledata.length
+                this.$message.success("筛选成功")
                 //把原始数据的作图给删掉
                 d3.select("#maingroup").remove()
             }
+        },
+        clear() {
+            this.$message.error("重置数据")
+            this.tabledata = this.tabledataOri
+            //重置完毕，数据分页
+            this.tableDataForShow = this.tabledata.slice((this.page.index - 1) * this.page.size, (this.page.index) * this.page.size)
+            this.page.total = this.tabledata.length
+            // 表单重置
+            this.formInline = Object.assign({}, {
+                user: '',
+                hop: '',
+                datastart: '',
+                dataend: '',
+                threshold: 1,
+                timestart: '',
+                timeend: '',
+                thresholdByTime: ''
+            });
+            //把原始数据的作图给删掉
+            d3.select("#maingroup").remove()
         },
         handleSizeChange(val) {
             //分页修改每页条数
@@ -192,11 +216,11 @@ export default {
             this.page.index = val
             this.tableDataForShow = this.tabledata.slice((this.page.index - 1) * this.page.size, (this.page.index) * this.page.size)
         },
-        openAcc(){
+        openAcc() {
             //直接修改坐标轴精确度，不用重新绘制
-            for(let i = 0;i<this.timeAll;i++){
-                if (i % this.accY != 0) { d3.select(`#tick-${i}`).style("display", "none")}
-                else{ d3.select(`#tick-${i}`).style("display", "")}
+            for (let i = 0; i < this.timeAll; i++) {
+                if (i % this.accY != 0) { d3.select(`#tick-${i}`).style("display", "none") }
+                else { d3.select(`#tick-${i}`).style("display", "") }
             }
         },
         generateVis2() {
@@ -272,7 +296,8 @@ export default {
                 this.accY = 1
             }
             let that = this;
-
+            //重置选取数据
+            this.filterresFromUser = []
             //对数据先进行处理
 
             //把form表单中 IP段；IP段 分割
