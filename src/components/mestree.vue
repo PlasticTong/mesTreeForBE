@@ -23,6 +23,7 @@
                         <el-input v-model="accY" placeholder="纵轴精确度" style="width: 10%;margin-right: 10px;"></el-input>
                         <el-button @click="generateVis2"
                             style="border-radius: 10px;  background-color: aquamarine; color: blue;">绘制</el-button>
+                            <el-button type="primary" icon="el-icon-edit" @click="openAcc" circle></el-button>
                     </div>
                     <svg id="chart" width="800" height="500"></svg>
                 </el-tab-pane>
@@ -102,7 +103,8 @@ export default {
             tableDataForShow: null,//表格展示的已分完页数据
             accY: "",//纵轴准确度
             filterresFromUser: [],//用户选择好的数据，即导出数据
-            timeSlice: ""//用户自己填写的时间片
+            timeSlice: "",//用户自己填写的时间片
+            timeAll:""//一共有多少时间点，为了做省略
         };
     },
     methods: {
@@ -119,9 +121,10 @@ export default {
             console.log(this.filterresFromUser);
         },
         async uploadFileTest(item) {
-            // this.tabledataSearch = null
+            //导入文件，先保存文件到本地，再读取，如果数据不需要导入，可以注释掉
             let formdataw = new FormData()
             formdataw.append('file', item.file)
+            //保存文件至本地
             await axios({
                 url: 'http://127.0.0.1:5002/mesBE/upload',
                 method: "POST",
@@ -129,7 +132,7 @@ export default {
             }).then(res => {
                 this.filename = res.data
             })
-
+            //读取文件
             await axios({
                 url: 'http://127.0.0.1:5002/mesBE/read',
                 method: "POST",
@@ -137,56 +140,68 @@ export default {
             }).then(res => {
                 this.tabledata = res.data
             })
+            //数据进行时间处理，增添数据属性，把2023-8-22 00:00:00 转换成毫秒，方便后续画图比较
             for (let i = 0; i < this.tabledata.length; i++) {
                 this.tabledata[i].timesecond = Date.parse(this.tabledata[i].time)
             }
+            //数据导入结束，表格数据展示，分页
             this.tableDataForShow = this.tabledata.slice((this.page.index - 1) * this.page.size, (this.page.index) * this.page.size)
             this.page.total = this.tabledata.length
-
-
         },
         async onSubmit() {
+            //数据检索，提交数据和表单数据到后台进行检索
+            //先把时间改成毫秒
             this.formInline.timestart = Date.parse(this.formInline.datastart)
             this.formInline.timeend = Date.parse(this.formInline.dataend)
-            this.formInline.thresholdByTime = this.formInline.threshold * this.value
-            // console.log((Date.parse(this.formInline.dataend) - Date.parse(this.formInline.datastart)) / (1000 * 60 * 60 * 24));
-            await axios({
-                url: 'http://127.0.0.1:5002/mesBE/searchData',
-                method: "POST",
-                data: {
-                    data: this.tabledata,
-                    form: this.formInline
-                }
-            }).then(res => {
-                this.tabledata = res.data
-            })
-            this.tableDataForShow = this.tabledata.slice((this.page.index - 1) * this.page.size, (this.page.index) * this.page.size)
-            this.page.total = this.tabledata.length
-            d3.select("#maingroup").remove()
-
+            if (this.formInline.user == '') {
+                this.$message.error("请输入IP")
+            } else if (this.formInline.hop == '') {
+                this.$message.error("请输入跳数")
+            } else if (this.formInline.datastart == '') {
+                this.$message.error("请输入起始时间")
+            } else if (this.formInline.dataend == '') {
+                this.$message.error("请输入终止时间")
+            } else {
+                //传入后台
+                await axios({
+                    url: 'http://127.0.0.1:5002/mesBE/searchData',
+                    method: "POST",
+                    data: {
+                        data: this.tabledata,
+                        form: this.formInline
+                    }
+                }).then(res => {
+                    this.tabledata = res.data
+                })
+                //检索完毕，数据分页
+                this.tableDataForShow = this.tabledata.slice((this.page.index - 1) * this.page.size, (this.page.index) * this.page.size)
+                this.page.total = this.tabledata.length
+                //把原始数据的作图给删掉
+                d3.select("#maingroup").remove()
+            }
         },
         handleSizeChange(val) {
-            console.log(`每页 ${val} 条`);
+            //分页修改每页条数
+            // console.log(`每页 ${val} 条`);
             this.page.size = val
             this.tableDataForShow = this.tabledata.slice((this.page.index - 1) * this.page.size, (this.page.index) * this.page.size)
-            // if (this.tabledataSearch != null) {
-            //     this.tableDataForShow = this.tabledataSearch.slice((this.page.index - 1) * this.page.size, (this.page.index) * this.page.size)
-            // } else {
-            //     this.tableDataForShow = this.tabledata.slice((this.page.index - 1) * this.page.size, (this.page.index) * this.page.size)
-            // }
-
         },
         handleCurrentChange(val) {
-            console.log(`当前页: ${val}`);
+            //分页修改当前页数
+            // console.log(`当前页: ${val}`);
             this.page.index = val
             this.tableDataForShow = this.tabledata.slice((this.page.index - 1) * this.page.size, (this.page.index) * this.page.size)
-            // if (this.tabledataSearch != null) {
-            //     this.tableDataForShow = this.tabledataSearch.slice((this.page.index - 1) * this.page.size, (this.page.index) * this.page.size)
-            // } else {
-                
-            // }
+        },
+        openAcc(){
+            //直接修改坐标轴精确度，不用重新绘制
+            for(let i = 0;i<this.timeAll;i++){
+                if (i % this.accY != 0) { d3.select(`#tick-${i}`).style("display", "none")}
+                else{ d3.select(`#tick-${i}`).style("display", "")}
+            }
         },
         generateVis2() {
+            //作图
+            //若无导入数据按钮，就直接导入json格式数据，如下
             // this.tabledata =
             //     [
             //         {
@@ -251,424 +266,47 @@ export default {
             //         }
             //     ]
 
+
+            //纵轴精确度若没填，默认1
             if (this.accY == '') {
                 this.accY = 1
             }
             let that = this;
+
+            //对数据先进行处理
+
+            //把form表单中 IP段；IP段 分割
             let IPfromChoose = []
             if (this.formInline.user != "") {
                 IPfromChoose = this.formInline.user.split(";")
                 console.log(IPfromChoose);
             }
 
+            //判断ip是否是该network ip段
             function isIPInNetwork(ip, network) {
                 var ipParts = ip.split(".");
                 var networkParts = network.split(".");
-
                 // 判断 IP 地址是否在网络地址中
                 for (var i = 0; i < 3; i++) {
                     if (ipParts[i] !== networkParts[i]) {
                         return false;
                     }
                 }
-
                 return true;
             }
-            //计算最大值最小值
-            // let filterMesData = [];
-            // filterMesData = {
-            //     "list": [
-            //         {
-            //             "id": 1,
-            //             "source": "192.168.1.1",
-            //             "target": "192.168.1.3",
-            //             "time": 1,
-            //             "content": "下班"
-            //         },
-            //         {
-            //             "id": 2,
-            //             "source": "192.168.1.3",
-            //             "target": "192.168.1.4",
-            //             "time": 1,
-            //             "content": "学习"
-            //         },
-            //         {
-            //             "id": 3,
-            //             "source": "192.168.1.4",
-            //             "target": "192.168.1.6",
-            //             "time": 1,
-            //             "content": "下班"
-            //         },
-            //         {
-            //             "id": 4,
-            //             "source": "192.168.1.4",
-            //             "target": "192.168.1.7",
-            //             "time": 1,
-            //             "content": "学习"
-            //         },
-            //         {
-            //             "id": 5,
-            //             "source": "192.168.1.4",
-            //             "target": "192.168.1.9",
-            //             "time": 1,
-            //             "content": "下班"
-            //         },
-            //         {
-            //             "id": 6,
-            //             "source": "192.168.1.1",
-            //             "target": "192.168.1.2",
-            //             "time": 1,
-            //             "content": "学习"
-            //         },
-            //         {
-            //             "id": 7,
-            //             "source": "192.168.1.3",
-            //             "target": "192.168.1.5",
-            //             "time": 1,
-            //             "content": "下班"
-            //         },
-            //         {
-            //             "id": 8,
-            //             "source": "192.168.1.5",
-            //             "target": "192.168.1.9",
-            //             "time": 1,
-            //             "content": "学习"
-            //         },
-            //         {
-            //             "id": 9,
-            //             "source": "192.168.1.2",
-            //             "target": "192.168.1.10",
-            //             "time": 1,
-            //             "content": "下班"
-            //         },
-            //         {
-            //             "id": 10,
-            //             "source": "192.168.1.8",
-            //             "target": "192.168.1.11",
-            //             "time": 1,
-            //             "content": "学习"
-            //         },
-            //         {
-            //             "id": 11,
-            //             "source": "192.168.1.1",
-            //             "target": "192.168.1.3",
-            //             "time": 2,
-            //             "content": "下班"
-            //         },
-            //         {
-            //             "id": 12,
-            //             "source": "192.168.1.3",
-            //             "target": "192.168.1.4",
-            //             "time": 2,
-            //             "content": "学习"
-            //         },
-            //         {
-            //             "id": 13,
-            //             "source": "192.168.1.4",
-            //             "target": "192.168.1.6",
-            //             "time": 2,
-            //             "content": "下班"
-            //         },
-            //         {
-            //             "id": 14,
-            //             "source": "192.168.1.5",
-            //             "target": "192.168.1.9",
-            //             "time": 2,
-            //             "content": "学习"
-            //         },
-            //         {
-            //             "id": 15,
-            //             "source": "192.168.1.9",
-            //             "target": "192.168.1.10",
-            //             "time": 2,
-            //             "content": "下班"
-            //         },
-            //         {
-            //             "id": 16,
-            //             "source": "192.168.1.9",
-            //             "target": "192.168.1.11",
-            //             "time": 2,
-            //             "content": "学习"
-            //         },
-            //         {
-            //             "id": 17,
-            //             "source": "192.168.1.4",
-            //             "target": "192.168.1.8",
-            //             "time": 2,
-            //             "content": "下班"
-            //         },
-            //         {
-            //             "id": 18,
-            //             "source": "192.168.1.8",
-            //             "target": "192.168.1.11",
-            //             "time": 2,
-            //             "content": "学习"
-            //         },
-            //         {
-            //             "id": 19,
-            //             "source": "192.168.1.1",
-            //             "target": "192.168.1.10",
-            //             "time": 2,
-            //             "content": "下班"
-            //         },
-            //         {
-            //             "id": 20,
-            //             "source": "192.168.1.1",
-            //             "target": "192.168.1.11",
-            //             "time": 2,
-            //             "content": "学习"
-            //         },
-            //         {
-            //             "id": 21,
-            //             "source": "192.168.1.5",
-            //             "target": "192.168.1.9",
-            //             "time": 3,
-            //             "content": "下班"
-            //         },
-            //         {
-            //             "id": 22,
-            //             "source": "192.168.1.9",
-            //             "target": "192.168.1.10",
-            //             "time": 3,
-            //             "content": "学习"
-            //         },
-            //         {
-            //             "id": 23,
-            //             "source": "192.168.1.9",
-            //             "target": "192.168.1.11",
-            //             "time": 3,
-            //             "content": "下班"
-            //         },
-            //         {
-            //             "id": 24,
-            //             "source": "192.168.1.1",
-            //             "target": "192.168.1.3",
-            //             "time": 3,
-            //             "content": "学习"
-            //         },
-            //         {
-            //             "id": 25,
-            //             "source": "192.168.1.3",
-            //             "target": "192.168.1.4",
-            //             "time": 3,
-            //             "content": "下班"
-            //         },
-            //         {
-            //             "id": 26,
-            //             "source": "192.168.1.4",
-            //             "target": "192.168.1.6",
-            //             "time": 3,
-            //             "content": "学习"
-            //         },
-            //         {
-            //             "id": 27,
-            //             "source": "192.168.1.2",
-            //             "target": "192.168.1.11",
-            //             "time": 3,
-            //             "content": "下班"
-            //         },
-            //         {
-            //             "id": 28,
-            //             "source": "192.168.1.2",
-            //             "target": "192.168.1.12",
-            //             "time": 3,
-            //             "content": "学习"
-            //         },
-            //         {
-            //             "id": 29,
-            //             "source": "192.168.1.2",
-            //             "target": "192.168.1.13",
-            //             "time": 3,
-            //             "content": "下班"
-            //         },
-            //         {
-            //             "id": 30,
-            //             "source": "192.168.1.2",
-            //             "target": "192.168.1.14",
-            //             "time": 3,
-            //             "content": "学习"
-            //         },
-            //         {
-            //             "id": 31,
-            //             "source": "192.168.1.2",
-            //             "target": "192.168.1.15",
-            //             "time": 4,
-            //             "content": "下班"
-            //         },
-            //         {
-            //             "id": 32,
-            //             "source": "192.168.1.2",
-            //             "target": "192.168.1.16",
-            //             "time": 4,
-            //             "content": "学习"
-            //         },
-            //         {
-            //             "id": 33,
-            //             "source": "192.168.1.5",
-            //             "target": "192.168.1.9",
-            //             "time": 4,
-            //             "content": "下班"
-            //         },
-            //         {
-            //             "id": 34,
-            //             "source": "192.168.1.9",
-            //             "target": "192.168.1.10",
-            //             "time": 4,
-            //             "content": "学习"
-            //         },
-            //         {
-            //             "id": 35,
-            //             "source": "192.168.1.9",
-            //             "target": "192.168.1.11",
-            //             "time": 4,
-            //             "content": "下班"
-            //         },
-            //         {
-            //             "id": 36,
-            //             "source": "192.168.1.1",
-            //             "target": "192.168.1.3",
-            //             "time": 4,
-            //             "content": "学习"
-            //         },
-            //         {
-            //             "id": 37,
-            //             "source": "192.168.1.3",
-            //             "target": "192.168.1.4",
-            //             "time": 4,
-            //             "content": "下班"
-            //         },
-            //         {
-            //             "id": 38,
-            //             "source": "192.168.1.4",
-            //             "target": "192.168.1.6",
-            //             "time": 4,
-            //             "content": "学习"
-            //         },
-            //         {
-            //             "id": 39,
-            //             "source": "192.168.1.4",
-            //             "target": "192.168.1.8",
-            //             "time": 4,
-            //             "content": "下班"
-            //         },
-            //         {
-            //             "id": 40,
-            //             "source": "192.168.1.8",
-            //             "target": "192.168.1.11",
-            //             "time": 4,
-            //             "content": "学习"
-            //         },
-            //         {
-            //             "id": 41,
-            //             "source": "192.168.1.111",
-            //             "target": "192.168.1.112",
-            //             "time": 4,
-            //             "content": "学习"
-            //         },
-            //         {
-            //             "id": 42,
-            //             "source": "192.168.1.112",
-            //             "target": "192.168.1.113",
-            //             "time": 4,
-            //             "content": "学习"
-            //         },
-            //         {
-            //             "id": 43,
-            //             "source": "192.168.1.113",
-            //             "target": "192.168.1.114",
-            //             "time": 4,
-            //             "content": "学习"
-            //         },
-            //         {
-            //             "id": 44,
-            //             "source": "192.168.1.115",
-            //             "target": "192.168.1.116",
-            //             "time": 4,
-            //             "content": "学习"
-            //         },
-            //         {
-            //             "id": 45,
-            //             "source": "192.168.1.116",
-            //             "target": "192.168.1.117",
-            //             "time": 4,
-            //             "content": "学习"
-            //         },
-            //         {
-            //             "id": 46,
-            //             "source": "192.168.1.111",
-            //             "target": "192.168.1.112",
-            //             "time": 14,
-            //             "content": "学习"
-            //         },
-            //         {
-            //             "id": 47,
-            //             "source": "192.168.1.112",
-            //             "target": "192.168.1.113",
-            //             "time": 14,
-            //             "content": "学习"
-            //         },
-            //         {
-            //             "id": 48,
-            //             "source": "192.168.1.114",
-            //             "target": "192.168.1.115",
-            //             "time": 14,
-            //             "content": "学习"
-            //         },
-            //         {
-            //             "id": 49,
-            //             "source": "192.168.1.115",
-            //             "target": "192.168.1.116",
-            //             "time": 14,
-            //             "content": "学习"
-            //         },
-            //         {
-            //             "id": 50,
-            //             "source": "192.168.1.116",
-            //             "target": "192.168.1.117",
-            //             "time": 14,
-            //             "content": "学习"
-            //         },
-            //         {
-            //             "id": 51,
-            //             "source": "192.168.1.1",
-            //             "target": "192.168.1.13",
-            //             "time": 14,
-            //             "content": "下班"
-            //         }
-            //     ],
-            //     "pageTotal": 51
-            // }
-            // this.tableDataForShow = filterMesData.list.slice((this.page.index - 1) * this.page.size, (this.page.index) * this.page.size)
-            // this.page.total = filterMesData.list.length
-            // var maxTime = 0;
-            // var minTime = 0;
-            // if (filterMesData != []) {
-            //     maxTime = filterMesData.list.reduce(function (prev, curr) {
-            //         return prev.time > curr.time ? prev : curr;
-            //     }, {});
-            //     minTime = filterMesData.list.reduce(function (prev, curr) {
-            //         return prev.time < curr.time ? prev : curr;
-            //     }, {});
-            // }
-            // this.maxx = maxTime
-            // this.minn = minTime
 
+            //绘制的数据
             let filterMesDataByHold = this.tabledata;
-            // if (this.tabledataSearch == null) {
-            //     filterMesDataByHold = this.tabledata
-            // } else {
-            //     filterMesDataByHold = this.tabledataSearch
-            // }
-            // filterMesDataByHold = this.tabledata
 
+            //所有ip数据，去重
             let filterUserData = new Set()
             for (let i = 0; i < this.tabledata.length; i++) {
                 filterUserData.add(this.tabledata[i].source)
                 filterUserData.add(this.tabledata[i].target)
-
             }
             filterUserData = Array.from(filterUserData)
 
+            //定义时间格式
             function formatDate(date) {
                 const year = date.getFullYear();
                 const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -681,50 +319,33 @@ export default {
             }
 
             // 示例用法
-            const date = new Date();
-            const formattedDate = formatDate(date);
+            // const date = new Date();
+            // const formattedDate = formatDate(date);
 
-            let filterMesData = [];
-            filterMesData.list = this.tabledata
-
+            //计算时间片
             let timeData = new Set()
+            //默认导入数据时间片，但是现在为用户输入时间片，所以用不到
             // let timeInterval = Date.parse(filterMesData.list[1].time) - Date.parse(filterMesData.list[0].time)
             if (this.timeSlice == '') {
                 this.$message.error("未输入时间片！")
                 return
             }
+            //时间片单位是10分钟
             let timeInterval = this.timeSlice * 60000 * 10
-            // this.value = timeInterval
-            let maxTime = Date.parse(filterMesData.list[filterMesData.list.length - 1].time) + timeInterval
-            let minTime = Date.parse(filterMesData.list[0].time)
-            console.log((maxTime - minTime) / timeInterval);
+            //计算最大时间
+            let maxTime = Date.parse(this.tabledata[this.tabledata.length - 1].time) + timeInterval
+            //计算最小时间
+            let minTime = Date.parse(this.tabledata[0].time)
+            //timedata是横轴的数据，需要补充上没有时间的数据，所以用最大最小时间来
             for (let i = 0; i < ((maxTime - minTime) / timeInterval); i++) {
-                // console.log(filterMesData.list[i].source);
                 timeData.add(formatDate(new Date(minTime + i * timeInterval)))
             }
-
-            // console.log(filterUserData);
             timeData = Array.from(timeData)
+            //作图逻辑原因，需要补充最大后面一个时间
             timeData.push(formatDate(new Date(Date.parse(timeData[timeData.length - 1]) + timeInterval)))
-            // 86400000
-            // console.log(timeData[0]);
-            // console.log(filterUserData);
+            this.timeAll = timeData.length
 
-
-
-
-
-            // let filterUserData = [];
-            // filterUserData = Object.values(store.state.filteruserres)
-            // let filterUserDataNUM = [];
-            // for(let i=0;i<filterUserData.length;i++){
-            //     console.log(filterUserData[i].num);
-            //     filterUserDataNUM.push(filterUserData[i].ids)
-            // }
-
-
-
-            // console.log('D3开始渲染');
+            //绘图
             const svg = d3.select('#chart').attr('width', 3000);
             svg.select("#maingroup").remove();
             const width = +svg.attr('width');
@@ -746,25 +367,6 @@ export default {
             let grid = g.append("g").attr("class", "grid")
             let axis = g.append("g").attr("class", "axis")
 
-
-            //     //在页面中添加svg 支持拖拽和缩放
-            //    linegroup.attr("width", 3000).attr("height", 600)
-            //         .call(d3.zoom().scaleExtent([1, 3]).on("zoom",
-            //             function redraw(event) {
-            //                 linegroup.attr("transform", d3.event.transform);
-            //                 console.log(1111213);
-            //             }
-            //         ))
-            //         // .attr("transform", "translate(" + 350 + "," + 20 + ")")
-            //     // console.log(linegroup);
-
-
-            // const timeX = []
-            // for (let i = minTime.time; i < maxTime.time + 2; i++) {
-            //     timeX.push(i)
-            //     // console.log(i);
-            // }
-            // console.log(timeX);
             // 设置坐标轴
             const xScale = d3.scaleBand()
                 .domain(timeData)
@@ -777,13 +379,6 @@ export default {
             // 定义边
             let line = d3.line()
                 .y(function (d) {
-                    // let res;
-                    // for(let i=0;i<filterUserData.length;i++){
-                    //     if(filterUserData[i].name==d.name){
-                    //         res = filterUserData[i].ids
-                    //         // console.log(res);
-                    //     }
-                    // }
                     return yScale(d.name) + 0.5 * yband;
                 })
                 .x(function (d) {
@@ -803,40 +398,25 @@ export default {
                 .attr("refX", 5)
                 .attr("refY", 0)
                 .attr("orient", "auto")
-            // .append('path')
-            // .attr('fill', 'red')
-            // .attr('d', 'M 0,-5 L 10,0 L 0,5');
 
-
-
-            // filterMesDataByHold.forEach(d=>{
-            //     d.source = filterUserData.find(e=>e.name == d.source).ids;
-            //     d.target = filterUserData.find(e=>e.name == d.target).ids;
-            // })
-            // console.log(filterMesDataByHold);
             //绘制边和箭头
             filterMesDataByHold.forEach(d => {
-                // console.log(d.source, d.time);
                 linegroup.append('path')
                     .attr('d', line([{
                         name: d.source,
-                        time: formatDate(new Date(d.time))
+                        time: formatDate(new Date(d.time))//格式化时间
                     }, {
                         name: d.target,
-                        time: formatDate(new Date(Date.parse(d.time) + timeInterval))
+                        time: formatDate(new Date(Date.parse(d.time) + timeInterval))//格式化下一个时间
                     }]))
-                    .attr('id', `E${d.id}`)
+                    .attr('id', `E${d.id}`)//唯一id
                     .style('cursor', 'pointer')
-                    .classed("chooseline", false)
-                    .classed("unchooseline", true)
-                    // .attr('class', `M${d.markov}`)
-                    // .attr('fill', 'none')
+                    .classed("chooseline", false)//选取样式
+                    .classed("unchooseline", true)//未选取样式
                     .attr('stroke-width', 5)
                     .attr("marker-end", "url(#arrow)")
-                    // .style("stroke", that.messageColor)
-                    // .style("stroke-dasharray", 6)
                     .on("click", function () {
-
+                        //点击选取，把边加到结果里面去
                         if (that.filterresFromUser.find(user => user == d.id) == null) {
                             that.$message.success("选取成功" + d.id);
                             that.filterresFromUser.push(d.id)
@@ -853,14 +433,11 @@ export default {
                         }
 
                     })
+                    //显示边数据
                     .append('title')
                     .text(dd => {
-                        return `source: ${d.source}\ntarget: ${d.target}\ntime: ${d.time}\ncontent: ${d.content}`;
+                        return `source: ${d.source}\ntarget: ${d.target}\ntime: ${d.time}`;
                     });;
-
-                // d3.select(`#E${44}`)
-                // .classed("chooseline",true)
-                // .classed("unchooseline",false)
 
                 // 绘制点
                 dotgroup.append("circle")
@@ -869,6 +446,7 @@ export default {
                     .attr("cx", xScale(formatDate(new Date(d.time))))
                     .attr("r", 8)
                     .style("fill", function () {
+                        //对筛选条件进行判断，若是筛选的标红
                         if (IPfromChoose != []) {
                             for (let i = 0; i < IPfromChoose.length; i++) {
                                 if (isIPInNetwork(d.source, IPfromChoose[i])) {
@@ -886,6 +464,7 @@ export default {
                     .attr("cx", xScale(formatDate(new Date(Date.parse(d.time) + timeInterval))))
                     .attr("r", 8)
                     .style("fill", function () {
+                        //对筛选条件进行判断，若是筛选的标红
                         if (IPfromChoose != []) {
                             for (let i = 0; i < IPfromChoose.length; i++) {
                                 if (isIPInNetwork(d.target, IPfromChoose[i])) {
@@ -900,69 +479,19 @@ export default {
 
             });
 
-            // //连线
-            // filterresFromUser = []
+            //通过时间阈值对原始点进行连线
             for (let i = 0; i < filterMesDataByHold.length; i++) {
+                // 若在该时间阈值内，存在一条消息的起点是我的终点（我的时间之后），或者一条消息的终点是我的起点（我的时间之前），认为我们是连接一起的，消息标黑
                 if (filterMesDataByHold.find(e =>
-                    (e.target == filterMesDataByHold[i].source && Date.parse(e.time) >= Date.parse(filterMesDataByHold[i].time) - this.formInline.threshold * timeInterval)
-                    || (e.source == filterMesDataByHold[i].target && Date.parse(e.time) <= Date.parse(filterMesDataByHold[i].time) + this.formInline.threshold * timeInterval)
+                    (e.target == filterMesDataByHold[i].source && Date.parse(filterMesDataByHold[i].time) - this.formInline.threshold * timeInterval <= Date.parse(e.time) <= Date.parse(filterMesDataByHold[i].time))
+                    || (e.source == filterMesDataByHold[i].target && Date.parse(filterMesDataByHold[i].time) <= Date.parse(e.time) <= Date.parse(filterMesDataByHold[i].time) + this.formInline.threshold * timeInterval)
                 ) != null) {
                     this.filterresFromUser.push(filterMesDataByHold[i].id);
-                    // console.log(filterMesDataByHold[i].id);
                     d3.select(`#E${filterMesDataByHold[i].id}`)
                         .classed("chooseline", true)
                         .classed("unchooseline", false)
-
-                    // console.log(store.state.filtermesresByhold[i]);
-                    // linegroup2
-                    //     .append('path')
-                    //     .attr('d', line([{
-                    //         name: store.state.filtermesresByhold[i].source.name,
-                    //         time: store.state.filtermesresByhold[i].time
-                    //     }, {
-                    //         name: store.state.filtermesresByhold[i].target.name,
-                    //         time: store.state.filtermesresByhold[i].time + 1
-                    //     }]))
-                    //     .attr('id', `E2${store.state.filtermesresByhold[i].id}`)
-                    //     .style("stroke", that.marColor)
-                    //     .style("stroke-dasharray", 0)
-                    //     // .attr('class', `M${d.markov}`)
-                    //     .attr('fill', 'none')
-                    //     .attr('stroke-width', 5)
-                    //     .attr("marker-end", "url(#arrow)")
-                    //     .style('cursor', 'pointer')
-                    //     .on("click", function () {
-                    //         ElMessage.error("取消选取" + store.state.filtermesresByhold[i].id);
-                    //         let index = store.state.filterresFromUser.indexOf(store.state.filtermesresByhold[i].id);
-                    //         store.state.filterresFromUser.splice(index, 1)
-                    //         // console.log("取消" + store.state.filterresFromUser);
-                    //         d3.select(`#E2${store.state.filtermesresByhold[i].id}`)
-                    //             .remove()
-                    //     })
-                    // d3.select(`#E${store.state.filtermesresByhold[i].id}`)
-                    //     .classed("chooseline", true)
-                    //     .classed("unchooseline", false)
                 }
             }
-
-            // let linkmust = linegroup2
-            //     .append('path')
-            //     .attr('d', line([{
-            //         name: "192.168.1.2",
-            //         time: 1
-            //     }, {
-            //         name: "192.168.1.10",
-            //         time: 2
-            //     }]))
-            //     // .attr('id', `E${d.id}`)
-            //     .style("stroke", "red")
-            //     .style("stroke-dasharray", 0)
-            //     // .attr('class', `M${d.markov}`)
-            //     .attr('fill', 'none')
-            //     .attr('stroke-width', 5)
-            //     .attr("marker-end", "url(#arrow)")
-
-
 
             // //加一个坐标轴的遮罩层
             let xAxisModel = svg.select('#maingroup')
@@ -983,8 +512,8 @@ export default {
                 .attr('fill', 'white')
 
 
-
-
+            // 坐标绘制
+            // y轴
             const yAxis = d3.axisLeft(yScale)
             const gY = axis.append('g')
                 .classed('yAxis', true)
@@ -992,6 +521,7 @@ export default {
             gY.selectAll(".tick")
                 .each(function (d, i) {
                     d3.select(this).attr("id", "tickIP-" + d);
+                    // 若该点被选到标红
                     if (IPfromChoose != []) {
                         for (let i = 0; i < IPfromChoose.length; i++) {
                             if (isIPInNetwork(d, IPfromChoose[i])) {
@@ -999,24 +529,24 @@ export default {
                             }
                         }
                     }
-                    // var result_ip = ipAddress.match(/^(\d+\.\d+\.\d+)/);
-                    // d3.select(this).style("color", "red")
                 })
 
+            // x轴
             const xAxis = d3.axisTop(xScale);
             const gX = axis.append('g')
                 .classed('xAxis', true)
                 .call(xAxis);
             gX.selectAll(".tick")
                 .each(function (d, i) {
-                    // 为每个tick生成唯一的id
                     d3.select(this).attr("id", "tick-" + i);
-                    if (i % that.accY != 0) { d3.select(this).style("display", "none");; }
+                    // 该点准确度不为0，省略
+                    if (i % that.accY != 0) { d3.select(this).style("display", "none") }
                 });
 
 
 
             function calAppendY() {
+                // y轴移动
                 let appendMove = 0;
                 gX.selectAll(".tick").each(function (d) {
                     let text_width = this.getBoundingClientRect().height
@@ -1026,6 +556,7 @@ export default {
                 return appendMove
             }
             function calAppendX() {
+                // x轴移动
                 let appendMove = 0;
                 gY.selectAll(".tick").each(function (d) {
                     let text_width = this.getBoundingClientRect().width
@@ -1036,11 +567,13 @@ export default {
                 return appendMove + 60
             }
 
+            // 坐标轴和遮罩层移动
             gY.attr("transform", `translate(${calAppendX()},${calAppendY()})`)
             gX.attr("transform", `translate(${calAppendX()},${calAppendY()})`)
             yAxisModel.attr("transform", `translate(${calAppendX()},${calAppendY()})`)
             xAxisModel.attr("transform", `translate(${calAppendX()},${calAppendY()})`)
 
+            // 图移动
             svg.select('.linegroup').attr("transform", `translate(${calAppendX()},${calAppendY() + 10})`)
             svg.select('.linegroup2').attr("transform", `translate(${calAppendX()},${calAppendY() + 10})`)
             svg.select('.dotgroup').attr("transform", `translate(${calAppendX()},${calAppendY() + 10})`)
@@ -1053,7 +586,6 @@ export default {
             const zoom = d3.zoom()
                 .scaleExtent([0.5, 40])
                 .translateExtent([[-1000, -1000], [width + 9000, height + 1000]])
-                // .filter(filter)
                 .on("zoom", zoomed);
 
 
@@ -1061,8 +593,10 @@ export default {
 
 
 
+            // 缩放
             function zoomed() {
                 const radio = 0.5
+                // 图缩放
                 svg.select('.linegroup').attr("transform", d3.event.transform);
                 svg.select('.linegroup2').attr("transform", d3.event.transform);
                 svg.select('.dotgroup').attr("transform", d3.event.transform);
@@ -1091,13 +625,13 @@ export default {
         },
     },
     mounted() {
-        var ipAddress = "102.168.1.0";
-        var result = ipAddress.match(/^(\d+\.\d+\.\d+)/);
-        if (result) {
-            console.log(result[1] + '.');
-        } else {
-            console.log("无法提取IP地址的前三个部分");
-        }
+        // var ipAddress = "102.168.1.0";
+        // var result = ipAddress.match(/^(\d+\.\d+\.\d+)/);
+        // if (result) {
+        //     console.log(result[1] + '.');
+        // } else {
+        //     console.log("无法提取IP地址的前三个部分");
+        // }
         // let a = '2023-8-27  00:00:00'
 
         // function formatDate(date) {
