@@ -1,6 +1,29 @@
 <template>
     <div>
-       
+        <div class="mar-title">
+            <h2 style="margin: 5px 5px;font-size: 20px;">消息流</h2>
+            <el-button @click="importall"
+                style="border-radius: 10px; margin-left: 10px; background-color: aquamarine; color: blue;">导入</el-button>
+            <el-button @click="exportall"
+                style="border-radius: 10px; margin-left: 10px; background-color: aquamarine; color: rgb(221, 103, 24);">导出</el-button>
+            <el-dialog :visible.sync="dialogVisble" width="500px" :before-close="handleClose">
+                <div>时间片：
+                    <el-input v-model="timeSlice" placeholder="请输入" style="width: 20%;">
+                    </el-input>
+                    *10分钟
+                </div>
+
+                <!-- <div style="display: flex;flex-direction: row;">时间片:<el-input v-model="formInline.threshold" placeholder="时间片" style="width: 20%;"></el-input></div> -->
+                <el-upload action="#" :http-request="uploadFileTest" :limit="1" :drag=true style="margin-top: 10px;">
+                    <i class="el-icon-upload"></i>
+                    <div class="el-upload__text">将文件拖到此处，或<em>点击上传</em></div>
+                    <!-- <el-button
+                        style="border-radius: 10px; margin-left: 10px; background-color: aquamarine; color: blue;">导入文件</el-button> -->
+                </el-upload>
+                <!-- <h2 style="margin: 5px 5px;font-size: 10px;margin-left: 10px;margin-top: 12px;">当前数据：{{ this.filename }}
+                </h2> -->
+            </el-dialog>
+
 
         </div>
         <div>
