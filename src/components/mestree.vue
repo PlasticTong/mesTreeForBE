@@ -17,20 +17,20 @@
             </el-dialog>
         </div>
         <div>
-            <el-tabs v-model="activeName">
+            <el-tabs v-model="activeName"  style="width:800px;height:450px">
                 <el-tab-pane label="消息流" name="first" style="display: flex;flex-direction: column;">
                     <div style="display: flex;flex-direction: row;">
-                        <el-input v-model="accY" placeholder="纵轴精确度" style="width: 10%;margin-right: 10px;"></el-input>
+                        <el-input v-model="accY" placeholder="精确度" style="width: 10%;margin-right: 10px;"></el-input>
                         <el-button @click="generateVis2"
                             style="border-radius: 10px;  background-color: aquamarine; color: blue;">绘制</el-button>
                         <el-button type="primary" icon="el-icon-edit" @click="openAcc" circle></el-button>
                     </div>
-                    <svg id="chart" width="800" height="500"></svg>
+                    <svg id="chart" width="800" height="400"></svg>
                 </el-tab-pane>
                 <el-tab-pane label="网络数据" name="second">
                     <el-form :inline="true" :model="formInline" class="demo-form-inline">
                         <el-form-item label="IP段">
-                            <el-input v-model="formInline.user" placeholder="IP段"></el-input>
+                            <el-input v-model="formInline.user" placeholder="IP段" style="font-size: 5px;height:10px"></el-input>
                         </el-form-item>
                         <el-form-item label="时间">
                             <el-col :span="11"><el-input type="datetime-local" v-model="formInline.datastart"
@@ -40,12 +40,12 @@
                                     placeholder="终止时间"></el-input></el-col>
                         </el-form-item>
                         <el-form-item label="跳数">
-                            <el-input v-model="formInline.hop" placeholder="跳数"></el-input>
+                            <el-input v-model="formInline.hop" placeholder="" style="width: 50px;font-size: 5px;height:10px"></el-input>
                         </el-form-item>
                         <el-form-item label="时间阈值">
                             <div>
                                 <el-input v-model="formInline.threshold" placeholder="时间阈值"
-                                    style="width: 70%;"></el-input>*{{ this.timeSlice * 10 }}分钟
+                                    style="width: 50px;font-size: 5px;height:10px"></el-input>*{{ this.timeSlice * 10 }}分钟
                             </div>
                         </el-form-item>
                         <el-form-item>
@@ -53,7 +53,7 @@
                             <el-button type="danger" @click="clear">重置</el-button>
                         </el-form-item>
                     </el-form>
-                    <el-table :data="tableDataForShow">
+                    <el-table :data="tableDataForShow" max-height="250">
                         <el-table-column prop="id" label="ID" width="55" align="center"></el-table-column>
                         <el-table-column prop="source" label="起始点"></el-table-column>
                         <el-table-column prop="target" label="目标点">
@@ -91,8 +91,8 @@ export default {
             formInline: {//表单数据
                 user: '',//IP
                 hop: '',//跳数
-                datastart: '',//起始时间
-                dataend: '',//终止时间
+                datastart: '2021-07-21T00:00',//起始时间
+                dataend: '2021-07-24T00:00',//终止时间
                 threshold: 1,//阈值
                 timestart: '',//换算成毫秒的时间
                 timeend: '',//换算成毫秒的时间
@@ -128,7 +128,7 @@ export default {
             formdataw.append('file', item.file)
             //保存文件至本地
             await axios({
-                url: 'http://127.0.0.1:5002/mesBE/upload',
+                url: 'http://127.0.0.1:5003/mesBE/upload',
                 method: "POST",
                 data: formdataw
             }).then(res => {
@@ -136,7 +136,7 @@ export default {
             })
             //读取文件
             await axios({
-                url: 'http://127.0.0.1:5002/mesBE/read',
+                url: 'http://127.0.0.1:5003/mesBE/read',
                 method: "POST",
                 data: { name: this.filename }
             }).then(res => {
@@ -152,6 +152,7 @@ export default {
             this.page.total = this.tabledata.length
         },
         async onSubmit() {
+            console.log(this.formInline);
             //数据检索，提交数据和表单数据到后台进行检索
             //先把时间改成毫秒
             this.formInline.timestart = Date.parse(this.formInline.datastart)
@@ -167,13 +168,14 @@ export default {
             } else {
                 //传入后台
                 await axios({
-                    url: 'http://127.0.0.1:5002/mesBE/searchData',
+                    url: 'http://127.0.0.1:5003/mesBE/check_ip',
                     method: "POST",
                     data: {
                         data: this.tabledataOri,
                         form: this.formInline
                     }
                 }).then(res => {
+                    console.log(res);
                     this.tabledata = res.data
                 })
                 //检索完毕，数据分页
@@ -290,6 +292,14 @@ export default {
             //         }
             //     ]
 
+            // //数据进行时间处理，增添数据属性，把2023-8-22 00:00:00 转换成毫秒，方便后续画图比较
+            // for (let i = 0; i < this.tabledata.length; i++) {
+            //     this.tabledata[i].timesecond = Date.parse(this.tabledata[i].time)
+            // }
+            // //数据导入结束，表格数据展示，分页
+            // this.tableDataForShow = this.tabledata.slice((this.page.index - 1) * this.page.size, (this.page.index) * this.page.size)
+            // this.page.total = this.tabledata.length
+
 
             //纵轴精确度若没填，默认1
             if (this.accY == '') {
@@ -304,7 +314,6 @@ export default {
             let IPfromChoose = []
             if (this.formInline.user != "") {
                 IPfromChoose = this.formInline.user.split(";")
-                console.log(IPfromChoose);
             }
 
             //判断ip是否是该network ip段
@@ -376,7 +385,7 @@ export default {
             const width = +svg.attr('width');
             const height = +svg.attr('height');
             const margin = { top: 10, bottom: 30, left: 10, right: 700 };
-            const innerwidth = width - margin.left - margin.right;
+            // const innerwidth = width - margin.left - margin.right;
             const innerheight = height - margin.top - margin.bottom;
             // 初始化元素
             const g = svg.append('g')
@@ -391,6 +400,8 @@ export default {
             let dotgroup = g.append("g").attr("class", "dotgroup");
             let grid = g.append("g").attr("class", "grid")
             let axis = g.append("g").attr("class", "axis")
+
+            const innerwidth = timeData.length * 100
 
             // 设置坐标轴
             const xScale = d3.scaleBand()
@@ -478,6 +489,7 @@ export default {
                                     return "red"
                                 }
                             }
+                            return "blue"
                         } else {
                             return "blue"
                         }
@@ -496,6 +508,7 @@ export default {
                                     return "red"
                                 }
                             }
+                            return "blue"
                         } else {
                             return "blue"
                         }
@@ -508,15 +521,20 @@ export default {
             for (let i = 0; i < filterMesDataByHold.length; i++) {
                 // 若在该时间阈值内，存在一条消息的起点是我的终点（我的时间之后），或者一条消息的终点是我的起点（我的时间之前），认为我们是连接一起的，消息标黑
                 if (filterMesDataByHold.find(e =>
-                    (e.target == filterMesDataByHold[i].source && Date.parse(filterMesDataByHold[i].time) - this.formInline.threshold * timeInterval <= Date.parse(e.time) <= Date.parse(filterMesDataByHold[i].time))
-                    || (e.source == filterMesDataByHold[i].target && Date.parse(filterMesDataByHold[i].time) <= Date.parse(e.time) <= Date.parse(filterMesDataByHold[i].time) + this.formInline.threshold * timeInterval)
+                    (e.target == filterMesDataByHold[i].source && Date.parse(filterMesDataByHold[i].time) - this.formInline.threshold * timeInterval <= Date.parse(e.time) && Date.parse(e.time) <= Date.parse(filterMesDataByHold[i].time))
+                    || (e.source == filterMesDataByHold[i].target && Date.parse(filterMesDataByHold[i].time) <= Date.parse(e.time) && Date.parse(e.time) <= Date.parse(filterMesDataByHold[i].time) + this.formInline.threshold * timeInterval)
                 ) != null) {
                     this.filterresFromUser.push(filterMesDataByHold[i].id);
+                    
                     d3.select(`#E${filterMesDataByHold[i].id}`)
                         .classed("chooseline", true)
                         .classed("unchooseline", false)
                 }
             }
+
+            console.log(Date.parse(filterMesDataByHold[0].time) <= Date.parse(filterMesDataByHold[1].time) + this.formInline.threshold * timeInterval);
+            // console.log(Date.parse(filterMesDataByHold[0].time));
+
 
             // //加一个坐标轴的遮罩层
             let xAxisModel = svg.select('#maingroup')
@@ -610,7 +628,7 @@ export default {
 
             const zoom = d3.zoom()
                 .scaleExtent([0.5, 40])
-                .translateExtent([[-1000, -1000], [width + 9000, height + 1000]])
+                .translateExtent([[-1000, -1000], [width + innerwidth, height + 1000]])
                 .on("zoom", zoomed);
 
 
@@ -690,6 +708,7 @@ export default {
     display: flex;
     color: white;
     background-color: #16C6FC;
+    width:800px
 }
 
 .input-box {
