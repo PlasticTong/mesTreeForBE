@@ -17,7 +17,7 @@
             </el-dialog>
         </div>
         <div>
-            <el-tabs v-model="activeName"  style="width:800px;height:450px">
+            <el-tabs v-model="activeName" style="width:800px;height:450px">
                 <el-tab-pane label="消息流" name="first" style="display: flex;flex-direction: column;">
                     <div style="display: flex;flex-direction: row;">
                         <el-input v-model="accY" placeholder="精确度" style="width: 10%;margin-right: 10px;"></el-input>
@@ -30,7 +30,8 @@
                 <el-tab-pane label="网络数据" name="second">
                     <el-form :inline="true" :model="formInline" class="demo-form-inline">
                         <el-form-item label="IP段">
-                            <el-input v-model="formInline.user" placeholder="IP段" style="font-size: 5px;height:10px"></el-input>
+                            <el-input v-model="formInline.user" placeholder="IP段"
+                                style="font-size: 5px;height:10px"></el-input>
                         </el-form-item>
                         <el-form-item label="时间">
                             <el-col :span="11"><el-input type="datetime-local" v-model="formInline.datastart"
@@ -40,7 +41,8 @@
                                     placeholder="终止时间"></el-input></el-col>
                         </el-form-item>
                         <el-form-item label="跳数">
-                            <el-input v-model="formInline.hop" placeholder="" style="width: 50px;font-size: 5px;height:10px"></el-input>
+                            <el-input v-model="formInline.hop" placeholder=""
+                                style="width: 50px;font-size: 5px;height:10px"></el-input>
                         </el-form-item>
                         <el-form-item label="时间阈值">
                             <div>
@@ -228,6 +230,7 @@ export default {
         generateVis2() {
             //作图
             //若无导入数据按钮，就直接导入json格式数据，如下
+
             // this.tabledata =
             //     [
             //         {
@@ -386,7 +389,7 @@ export default {
             const height = +svg.attr('height');
             const margin = { top: 10, bottom: 30, left: 10, right: 700 };
             // const innerwidth = width - margin.left - margin.right;
-            const innerheight = height - margin.top - margin.bottom;
+            // const innerheight = height - margin.top - margin.bottom;
             // 初始化元素
             const g = svg.append('g')
                 .attr('id', 'maingroup')
@@ -402,6 +405,7 @@ export default {
             let axis = g.append("g").attr("class", "axis")
 
             const innerwidth = timeData.length * 100
+            const innerheight = filterUserData.length * 50;
 
             // 设置坐标轴
             const xScale = d3.scaleBand()
@@ -435,8 +439,47 @@ export default {
                 .attr("refY", 0)
                 .attr("orient", "auto")
 
+            //10.20选点 1、增加一个map
+            //绘制边和箭头
+            // 创建一个Map对象
+            var keyValueTable = new Map();
+
+            // 添加键值对
+            keyValueTable.set("key1", "value1");
+            keyValueTable.set("key2", "value2");
+            keyValueTable.set("key3", "value3");
+
+            // 访问键值对
+            // console.log(keyValueTable.get("key1")); // 输出: value1
+            // console.log(keyValueTable.get("key2")); // 输出: value2
+            // console.log(keyValueTable.get("key3")); // 输出: value3
+
+            // 添加键值对，value 是一个数组
+            function addValue(key, value) {
+                if (keyValueTable.has(key)) {
+                    // 如果已经存在该 key，则获取值数组，并添加新的 value
+                    var values = keyValueTable.get(key);
+                    values.push(value);
+                } else {
+                    // 如果不存在该 key，则创建新的值数组，并添加 value
+                    var values = [value];
+                    keyValueTable.set(key, values);
+                }
+            }
+
+
             //绘制边和箭头
             filterMesDataByHold.forEach(d => {
+
+                //10.23选点 2、定义id    
+                var source_name = d.source.replace(/\./g, "_"); // 将点替换为下划线
+                var source_time = Date.parse(d.time);
+                var target_name = d.target.replace(/\./g, "_"); // 将点替换为下划线
+                var target_time = Date.parse(d.time) + timeInterval;
+                addValue(source_name + source_time, d)
+                addValue(target_name + target_time, d)
+
+
                 linegroup.append('path')
                     .attr('d', line([{
                         name: d.source,
@@ -477,7 +520,9 @@ export default {
 
                 // 绘制点
                 dotgroup.append("circle")
-                    .attr("class", `T${d.source}`)
+                    //10.23选点 4、点id
+                    .attr("id", `DotS${source_name}_${source_time}`)
+                    // .attr("class", `T${d.source}`)
                     .attr("cy", yScale(d.source) + 0.5 * yband)
                     .attr("cx", xScale(formatDate(new Date(d.time))))
                     .attr("r", 8)
@@ -493,10 +538,30 @@ export default {
                         } else {
                             return "blue"
                         }
-                    });
+                    })
+                    //10.23选点 5、mouse事件
+                    .on("mouseover", function () {
+                        dotgroup.selectAll("circle").style('opacity', 0.1);
+                        d3.select(this).style('opacity', 1)
+                        linegroup.selectAll("path").style('opacity', 0.1)
+                        keyValueTable.get(source_name + source_time).forEach(e => {
+                            //10.23 bug 换成e.id
+                            d3.select(`#E${e.id}`).style('opacity', 1)
+                            //10.23 bug 换成e.source e.time
+                            d3.select(`#DotS${e.source.replace(/\./g, "_")}_${Date.parse(e.time)}`).style('opacity', 1)
+                            //10.23 bug 换成e.target e.time
+                            d3.select(`#DotT${e.target.replace(/\./g, "_")}_${Date.parse(e.time) + timeInterval}`).style('opacity', 1)
+                        })
+                    })
+                    .on("mouseout", function () {
+                        dotgroup.selectAll("circle").style('opacity', 1);
+                        linegroup.selectAll("path").style('opacity', 1)
+                    })
 
                 dotgroup.append("circle")
-                    .attr("class", `T${d.target}`)
+                    //10.20选点 6、点id
+                    .attr("id", `DotT${target_name}_${target_time}`)
+                    // .attr("class", `T${d.target}`)
                     .attr("cy", yScale(d.target) + 0.5 * yband)
                     .attr("cx", xScale(formatDate(new Date(Date.parse(d.time) + timeInterval))))
                     .attr("r", 8)
@@ -512,7 +577,25 @@ export default {
                         } else {
                             return "blue"
                         }
-                    });
+                    })
+                    //10.23选点 7、mouse事件
+                    .on("mouseover", function () {
+                        dotgroup.selectAll("circle").style('opacity', 0.1);
+                        d3.select(this).style('opacity', 1)
+                        linegroup.selectAll("path").style('opacity', 0.1)
+                        keyValueTable.get(target_name + target_time).forEach(e => {
+                            //10.23 bug 换成e.target e.time
+                            d3.select(`#DotS${e.source.replace(/\./g, "_")}_${Date.parse(e.time)}`).style('opacity', 1)
+                            //10.23 bug 换成e.id
+                            d3.select(`#E${e.id}`).style('opacity', 1)
+                        })
+                    })
+                    .on("mouseout", function () {
+
+                        dotgroup.selectAll("circle").style('opacity', 1);
+                        linegroup.selectAll("path").style('opacity', 1)
+
+                    })
 
 
             });
@@ -525,7 +608,7 @@ export default {
                     || (e.source == filterMesDataByHold[i].target && Date.parse(filterMesDataByHold[i].time) <= Date.parse(e.time) && Date.parse(e.time) <= Date.parse(filterMesDataByHold[i].time) + this.formInline.threshold * timeInterval)
                 ) != null) {
                     this.filterresFromUser.push(filterMesDataByHold[i].id);
-                    
+
                     d3.select(`#E${filterMesDataByHold[i].id}`)
                         .classed("chooseline", true)
                         .classed("unchooseline", false)
@@ -708,7 +791,7 @@ export default {
     display: flex;
     color: white;
     background-color: #16C6FC;
-    width:800px
+    width: 800px
 }
 
 .input-box {
